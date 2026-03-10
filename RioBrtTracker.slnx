@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="RioBrtTracker/RioBrtTracker.vcxproj" Id="391cd034-e571-41e5-89be-9580835cfdd5" />
+</Solution>
