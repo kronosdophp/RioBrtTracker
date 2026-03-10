@@ -79,3 +79,45 @@ O backend é **multi-threaded**, confiável, e suporta respostas **comprimidas e
     "timestamp": 1712953200
   }
 ]
+
+```
+
+
+
+
+
+
+# 🚍 RioBrtTracker (BrtRioMonitor) Front-End
+
+[![Next.js](https://img.shields.io/badge/Next.js-black?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)  
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)  
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)  
+[![C++](https://img.shields.io/badge/C%2B%2B-00599C?style=flat&logo=c%2B%2B&logoColor=white)](https://isocpp.org/)  
+
+Aplicativo web para **monitoramento em tempo real dos veículos do BRT Rio de Janeiro**, combinando **frontend em Next.js (TypeScript)** e **backend em C++**.
+
+---
+
+## 🟢 Frontend - Funcionalidades
+
+- **Mapa Interativo**: Visualiza veículos em tempo real com marcadores (Leaflet).  
+- **Dashboard de Estatísticas**: Total de veículos, quantos estão em movimento/parados, linhas ativas.  
+- **Filtro por Linha**: Mostra veículos de uma linha específica ou todas.  
+- **Lista de Veículos**: Painel lateral com detalhes (ID, linha, velocidade, sentido e ignição).  
+- **Localização do Usuário**: Mostra sua posição no mapa e destaca veículos próximos.  
+- **Painéis Adicionais**: Rotas, estações, estatísticas detalhadas e status de conexão.  
+- **Atualização Automática**: Dados atualizados a cada 20 segundos via backend local.  
+- **Interface Responsiva**: Desktop e mobile com Radix UI e shadcn/ui.
+
+---
+
+## ⚙️ Frontend - Como Usar
+
+### Pré-requisitos
+- Node.js e pnpm (ou npm)  
+- Backend C++ rodando (`http://localhost:8080/api/veiculos`)
+
+### Instalação e execução
+```bash
+pnpm install      # ou npm install
+pnpm dev          # ou npm run dev
