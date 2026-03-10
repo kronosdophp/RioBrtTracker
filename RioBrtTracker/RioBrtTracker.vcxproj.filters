@@ -19,4 +19,8 @@
       <Filter>Arquivos de Origem</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html" />
+    <None Include="style.css" />
+  </ItemGroup>
 </Project>
