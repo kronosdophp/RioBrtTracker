@@ -19,10 +19,17 @@ interface BRTMapProps {
 }
 
 function createBusIcon(isMoving: boolean, isSelected: boolean) {
-  const size = isSelected ? 36 : 28
-  const bgColor = isSelected ? "#4f46e5" : isMoving ? "#059669" : "#d97706"
+  const size = isSelected ? 40 : 32
+  const bgColor = isSelected 
+    ? "#8b5cf6" 
+    : isMoving 
+      ? "#10b981" 
+      : "#f59e0b"
+  
   const pulseClass = isMoving && !isSelected ? "bus-pulse" : ""
-  const ring = isSelected ? `box-shadow: 0 0 0 4px rgba(79,70,229,0.35), 0 2px 8px rgba(0,0,0,0.3);` : `box-shadow: 0 2px 8px rgba(0,0,0,0.25);`
+  const ring = isSelected 
+    ? `box-shadow: 0 0 0 4px rgba(139,92,246,0.4), 0 4px 12px rgba(0,0,0,0.5);` 
+    : `box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 2px rgba(255,255,255,0.5);`
 
   return L.divIcon({
     className: "bus-marker-icon",
@@ -36,16 +43,15 @@ function createBusIcon(isMoving: boolean, isSelected: boolean) {
       align-items: center;
       justify-content: center;
       transition: all 0.3s ease;
-      border: 2px solid rgba(255,255,255,0.9);
+      border: 3px solid white;
+      transform: ${isSelected ? 'scale(1.1)' : 'scale(1)'};
     ">
-      <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none">
-        <rect x="4" y="3" width="16" height="14" rx="2" stroke="white" stroke-width="2"/>
-        <rect x="4" y="12" width="16" height="5" rx="0" stroke="white" stroke-width="2"/>
-        <line x1="4" y1="9" x2="20" y2="9" stroke="white" stroke-width="1.5"/>
-        <circle cx="8" cy="19" r="1.5" fill="white"/>
-        <circle cx="16" cy="19" r="1.5" fill="white"/>
-        <rect x="7" y="5" width="4" height="3" rx="0.5" fill="rgba(255,255,255,0.4)"/>
-        <rect x="13" y="5" width="4" height="3" rx="0.5" fill="rgba(255,255,255,0.4)"/>
+      <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+        <rect x="4" y="3" width="16" height="14" rx="2" fill="white" fill-opacity="0.2"/>
+        <rect x="6" y="6" width="4" height="3" rx="0.5" fill="white" fill-opacity="0.5"/>
+        <rect x="14" y="6" width="4" height="3" rx="0.5" fill="white" fill-opacity="0.5"/>
+        <circle cx="8" cy="19" r="2" fill="white"/>
+        <circle cx="16" cy="19" r="2" fill="white"/>
       </svg>
     </div>`,
     iconSize: [size, size],
@@ -58,14 +64,14 @@ function createUserIcon() {
   return L.divIcon({
     className: "user-marker-icon",
     html: `<div class="user-loc-pulse" style="
-      width: 20px; height: 20px;
+      width: 24px; height: 24px;
       border-radius: 50%;
       background: #3b82f6;
-      border: 3px solid white;
-      box-shadow: 0 0 0 6px rgba(59,130,246,0.25), 0 2px 8px rgba(0,0,0,0.3);
+      border: 4px solid white;
+      box-shadow: 0 0 0 6px rgba(59,130,246,0.3), 0 8px 16px rgba(0,0,0,0.4);
     "></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   })
 }
 
@@ -77,68 +83,85 @@ function createPopupContent(
   const isMoving = vel > 0
   const busLat = Number(v.latitude)
   const busLng = Number(v.longitude)
-  const statusColor = isMoving ? "#059669" : "#d97706"
-  const statusBg = isMoving ? "#ecfdf5" : "#fffbeb"
+  const statusColor = isMoving ? "#10b981" : "#f59e0b"
+  const statusBg = isMoving ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)"
   const statusText = isMoving ? "Em movimento" : "Parado"
 
-  // ETA
   let etaHtml = ""
   if (userLoc && !isNaN(busLat) && !isNaN(busLng)) {
     const eta = estimarChegada(busLat, busLng, vel, userLoc.lat, userLoc.lng)
     etaHtml = `
-      <div style="margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #ecfdf5, #f0fdf4); border: 1px solid #bbf7d0; border-radius: 8px;">
-        <div style="font-size: 10px; color: #059669; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Previsao ate voce</div>
+      <div style="margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; color: white;">
+        <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; opacity: 0.9;">Previsão de chegada</div>
         <div style="display: flex; align-items: baseline; gap: 8px;">
-          <span style="font-size: 22px; font-weight: 800; color: #047857; font-family: 'Geist Mono', monospace;">${eta.texto}</span>
-          <span style="font-size: 11px; color: #6b7280; font-weight: 500;">${formatDistancia(eta.distanciaKm)}</span>
+          <span style="font-size: 24px; font-weight: 800; font-family: 'Geist Mono', monospace;">${eta.texto}</span>
+          <span style="font-size: 12px; font-weight: 500; opacity: 0.9;">${formatDistancia(eta.distanciaKm)}</span>
         </div>
-        <div style="font-size: 10px; color: #9ca3af; margin-top: 3px;">${vel > 5 ? "Baseado na velocidade atual" : "Estimativa (vel. media ~25 km/h)"}</div>
+        <div style="font-size: 10px; margin-top: 4px; opacity: 0.8;">${vel > 5 ? " Baseado na velocidade atual" : " Estimativa média"}</div>
       </div>
     `
   }
 
-  // Estacao mais proxima
   let stationHtml = ""
-  const corredorKey = v.trajeto
-  ? getCorredorFromTrajeto(v.trajeto)
-  : undefined
+  const corredorKey = getCorredorFromTrajeto(v.trajeto) // Se o veículo tiver um trajeto reconhecido, ele deve mostrar a estação mais próxima, mas no momento essa funçao eu tirei, pois vou precisar pegar as rotas precisas de todas estaçoes, e creio que vai levar um tempo pra eu fazer isso:/ mas breve eu irei atualizar isso, pois acho que vai ser uma informaçao bem interessante de se ter no popup, principalmente pra quem nao conhece muito bem o sistema BRT do Rio e quer entender melhor onde o veiculo esta. Mas por enquanto, vou deixar essa funçao comentada, e quando eu tiver as rotas de todas estaçoes atualizadas, eu descomento ela e mostro a estaçao mais proxima de cada veiculo no popup.
   if (corredorKey && corredores[corredorKey] && !isNaN(busLat) && !isNaN(busLng)) {
     const { estacao, distKm } = getEstacaoMaisProxima(busLat, busLng, corredores[corredorKey])
     stationHtml = `
-      <div style="margin-top: 8px; padding: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
-        <div style="width: 6px; height: 6px; border-radius: 50%; background: ${corredores[corredorKey].cor}; flex-shrink: 0;"></div>
+      <div style="margin-top: 8px; padding: 10px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.6); border-radius: 10px; display: flex; align-items: center; gap: 10px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${corredores[corredorKey].cor}; box-shadow: 0 0 0 2px rgba(255,255,255,0.5);"></div>
         <div>
-          <div style="font-size: 10px; color: #94a3b8; font-weight: 600;">Proxima estacao</div>
-          <div style="font-size: 12px; color: #334155; font-weight: 600;">${estacao.nome}</div>
-          <div style="font-size: 10px; color: #94a3b8;">${formatDistancia(distKm)} - ${corredores[corredorKey].nome}</div>
+          <div style="font-size: 10px; color: #6b7280; font-weight: 600;">PRÓXIMA ESTAÇÃO</div>
+          <div style="font-size: 14px; color: #1f2937; font-weight: 700;">${estacao.nome}</div>
+          <div style="font-size: 11px; color: #6b7280;">${formatDistancia(distKm)} • ${corredores[corredorKey].nome}</div>
         </div>
       </div>
     `
   }
 
   return `
-    <div style="font-family: 'Geist', system-ui, sans-serif; min-width: 230px; padding: 2px 0;">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <div style="width: 32px; height: 32px; border-radius: 8px; background: #1e293b; display: flex; align-items: center; justify-content: center;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="14" rx="2" stroke="white" stroke-width="2"/><line x1="4" y1="9" x2="20" y2="9" stroke="white" stroke-width="1.5"/><circle cx="8" cy="19" r="1.5" fill="white"/><circle cx="16" cy="19" r="1.5" fill="white"/></svg>
+    <div style="font-family: 'Geist', system-ui, sans-serif; min-width: 260px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 16px; padding: 16px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #1e293b, #0f172a); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+              <rect x="4" y="3" width="16" height="14" rx="2" fill="white" fill-opacity="0.2"/>
+              <circle cx="8" cy="19" r="2" fill="white"/>
+              <circle cx="16" cy="19" r="2" fill="white"/>
+            </svg>
           </div>
           <div>
-            <strong style="font-size: 15px; font-family: 'Geist Mono', monospace; color: #0f172a;">${v.veiculo || "N/A"}</strong>
-            <div style="font-size: 11px; color: #64748b;">Linha ${v.linha || "?"}</div>
+            <strong style="font-size: 16px; font-family: 'Geist Mono', monospace; color: #0f172a;">${v.veiculo || "N/A"}</strong>
+            <div style="font-size: 12px; color: #64748b;">Linha ${v.linha || "?"}</div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; background: ${statusBg}; padding: 3px 8px; border-radius: 20px;">
-          <div style="width: 6px; height: 6px; border-radius: 50%; background: ${statusColor};"></div>
-          <span style="font-size: 10px; color: ${statusColor}; font-weight: 600;">${statusText}</span>
+        <div style="display: flex; align-items: center; gap: 6px; background: ${statusBg}; padding: 4px 10px; border-radius: 30px; border: 1px solid ${statusColor}20;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor}; animation: ${isMoving ? 'pulse 1.5s infinite' : 'none'};"></div>
+          <span style="font-size: 11px; color: ${statusColor}; font-weight: 600;">${statusText}</span>
         </div>
       </div>
-      <div style="display: grid; gap: 6px; font-size: 12px;">
-        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #94a3b8;">Velocidade</span> <span style="color: #0f172a; font-weight: 600; font-family: 'Geist Mono', monospace;">${vel} km/h</span></div>
-        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #94a3b8;">Sentido</span> <span style="color: #0f172a; font-weight: 500;">${v.sentido || "N/A"}</span></div>
-        <div style="display: flex; justify-content: space-between; padding: 4px 0;"><span style="color: #94a3b8;">Trajeto</span> <span style="color: #0f172a; font-weight: 500; text-align: right; max-width: 160px; font-size: 11px;">${v.trajeto || "N/A"}</span></div>
-        ${v.placa ? `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid #f1f5f9;"><span style="color: #94a3b8;">Placa</span> <span style="color: #0f172a; font-weight: 600; font-family: 'Geist Mono', monospace;">${v.placa}</span></div>` : ""}
+      
+      <div style="background: #f8fafc; border-radius: 12px; padding: 12px; margin-bottom: 8px;">
+        <div style="display: grid; gap: 8px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">Velocidade</span> 
+            <span style="color: #0f172a; font-weight: 700; font-family: 'Geist Mono', monospace;">${vel} km/h</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">Sentido</span> 
+            <span style="color: #0f172a; font-weight: 600;">${v.sentido || "N/A"}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">Trajeto</span> 
+            <span style="color: #0f172a; font-weight: 500; text-align: right; max-width: 160px;">${v.trajeto || "N/A"}</span>
+          </div>
+          ${v.placa ? `
+          <div style="display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+            <span style="color: #64748b;">Placa</span> 
+            <span style="color: #0f172a; font-weight: 600; font-family: 'Geist Mono', monospace;">${v.placa}</span>
+          </div>` : ""}
+        </div>
       </div>
+      
       ${stationHtml}
       ${etaHtml}
     </div>
@@ -166,7 +189,6 @@ export function BRTMap({
     userLocRef.current = userLocation
   }, [userLocation])
 
-  // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -177,15 +199,28 @@ export function BRTMap({
       attributionControl: true,
     })
 
+    ///atualizei essa imagem do satelite para uma mais clara, pois a anterior estava muito escura e dificultava a visualização dos veículos
     L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: "abcd",
+          'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
         maxZoom: 19,
       }
     ).addTo(map)
+
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
+        pane: "overlayPane",
+      }
+    ).addTo(map)
+
+    L.control.scale({ imperial: false, metric: true }).addTo(map)
 
     mapRef.current = map
 
@@ -210,9 +245,9 @@ export function BRTMap({
           { icon: createUserIcon(), zIndexOffset: 1000 }
         )
           .bindPopup(
-            `<div style="font-family: 'Geist', system-ui, sans-serif; padding: 4px; text-align: center;">
-              <strong style="color: #3b82f6; font-size: 13px;">Voce esta aqui</strong>
-              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}</div>
+            `<div style="font-family: 'Geist', system-ui, sans-serif; padding: 8px; text-align: center; background: rgba(255,255,255,0.95); border-radius: 12px;">
+              <strong style="color: #3b82f6; font-size: 14px;"> Você está aqui</strong>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${userLocation.lat.toFixed(5)}, ${userLocation.lng.toFixed(5)}</div>
             </div>`
           )
           .addTo(map)
@@ -256,7 +291,7 @@ export function BRTMap({
             icon: createBusIcon(isMoving, isSelected),
           })
             .bindPopup(createPopupContent(v, userLocRef.current), {
-              maxWidth: 280,
+              maxWidth: 320,
               className: "brt-popup",
             })
             .addTo(map)
@@ -283,12 +318,15 @@ export function BRTMap({
     updateMarkers(veiculos, selectedId)
   }, [veiculos, selectedId, updateMarkers])
 
-  // Fly to selected vehicle
+  // Fly to selected vehicle with smooth animation
   useEffect(() => {
     if (selectedId && markersRef.current[selectedId] && mapRef.current) {
       const marker = markersRef.current[selectedId]
-      mapRef.current.flyTo(marker.getLatLng(), 15, { duration: 0.8 })
-      marker.openPopup()
+      mapRef.current.flyTo(marker.getLatLng(), 16, { 
+        duration: 1.2,
+        easeLinearity: 0.25
+      })
+      setTimeout(() => marker.openPopup(), 400)
     }
   }, [selectedId])
 
@@ -297,7 +335,7 @@ export function BRTMap({
       ref={containerRef}
       className="h-full w-full"
       role="application"
-      aria-label="Mapa de veiculos BRT do Rio de Janeiro"
+      aria-label="Mapa de veículos BRT do Rio de Janeiro"
     />
   )
 }
