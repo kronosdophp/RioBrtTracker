@@ -3,6 +3,7 @@
 import { Bus, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { StatsPanel } from "./stats-panel"
 import { LineFilter } from "./line-filter"
 import { VehicleList } from "./vehicle-list"
@@ -16,6 +17,7 @@ interface SidebarProps {
   veiculos: Veiculo[]
   selectedId: string | null
   selectedLinha: string
+  showStoppedVehicles: boolean
   isLoading: boolean
   isValidating: boolean
   isConnected: boolean
@@ -28,6 +30,7 @@ interface SidebarProps {
   onRefresh: () => void
   onToggleCollapse: () => void
   onRequestLocation: () => void
+  onShowStoppedVehiclesChange: (checked: boolean) => void
 }
 
 export function Sidebar({
@@ -35,6 +38,7 @@ export function Sidebar({
   veiculos,
   selectedId,
   selectedLinha,
+  showStoppedVehicles,
   isLoading,
   isValidating,
   isConnected,
@@ -47,11 +51,16 @@ export function Sidebar({
   onRefresh,
   onToggleCollapse,
   onRequestLocation,
+  onShowStoppedVehiclesChange,
 }: SidebarProps) {
   const filteredVeiculos =
     selectedLinha === "all"
-      ? veiculos
-      : veiculos.filter((v) => v.linha === selectedLinha)
+      ? veiculos.filter((v) => showStoppedVehicles || (Number(v.velocidade) || 0) > 0)
+      : veiculos.filter(
+          (v) =>
+            v.linha === selectedLinha &&
+            (showStoppedVehicles || (Number(v.velocidade) || 0) > 0)
+        )
 
   const sidebarContent = (
     <>
@@ -86,7 +95,7 @@ export function Sidebar({
       </div>
 
       {/* Content */}
-      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
         <ConnectionStatus
           isConnected={isConnected}
           isValidating={isValidating}
@@ -112,6 +121,22 @@ export function Sidebar({
           onLinhaChange={onLinhaChange}
         />
 
+        <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/40 px-3 py-2">
+          <div>
+            <p className="text-xs font-semibold text-foreground">
+              Exibir parados
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Mostra ou oculta os veiculos sem movimento.
+            </p>
+          </div>
+          <Switch
+            checked={showStoppedVehicles}
+            onCheckedChange={onShowStoppedVehiclesChange}
+            aria-label="Mostrar veiculos parados"
+          />
+        </div>
+
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
             Veiculos ({filteredVeiculos.length})
@@ -123,6 +148,7 @@ export function Sidebar({
           selectedId={selectedId}
           onSelect={onSelectVeiculo}
           isLoading={isLoading}
+          className="min-h-0 flex-1"
         />
       </div>
 
@@ -137,26 +163,27 @@ export function Sidebar({
 
   // Desktop: Show as fixed sidebar
   return (
-    <aside
-      className={cn(
-        "relative flex h-full flex-col border-r border-border bg-card transition-all duration-300",
-        collapsed ? "w-0 overflow-hidden border-r-0" : "w-[360px]"
-      )}
-    >
-      {!collapsed && sidebarContent}
-      
-      {/* Expand button when sidebar is collapsed */}
+    <div className="relative z-[1200] hidden h-full shrink-0 md:block">
+      <aside
+        className={cn(
+          "relative flex h-full flex-col overflow-hidden border-r border-border bg-card transition-[width,border-color] duration-300",
+          collapsed ? "w-0 border-r-transparent" : "w-[360px]"
+        )}
+      >
+        {!collapsed && sidebarContent}
+      </aside>
+
       {collapsed && (
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleCollapse}
-          className="absolute -right-9 top-3 z-40 h-8 w-8 rounded-r-lg rounded-l-none border border-l-0 border-border bg-card text-muted-foreground hover:text-foreground"
+          className="absolute left-full top-3 z-50 h-9 w-9 rounded-l-none rounded-r-lg border border-l-0 border-border bg-card text-muted-foreground shadow-sm hover:text-foreground"
           aria-label="Abrir painel"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
       )}
-    </aside>
+    </div>
   )
 }

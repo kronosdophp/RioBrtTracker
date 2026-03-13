@@ -10,6 +10,7 @@ interface VehicleListProps {
   selectedId: string | null
   onSelect: (id: string) => void
   isLoading: boolean
+  className?: string
 }
 
 export function VehicleList({
@@ -17,10 +18,11 @@ export function VehicleList({
   selectedId,
   onSelect,
   isLoading,
+  className,
 }: VehicleListProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={cn("flex flex-col gap-2", className)}>
         {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
@@ -33,16 +35,22 @@ export function VehicleList({
 
   if (veiculos.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex min-h-[120px] items-center justify-center py-8 text-sm text-muted-foreground",
+          className
+        )}
+      >
         Nenhum veiculo encontrado
       </div>
     )
   }
 
   return (
-    <ScrollArea className="h-[calc(100vh-420px)]">
-      <div className="flex flex-col gap-1.5 pr-3">
-        {veiculos
+    <div className={cn("min-h-0 flex-1", className)}>
+      <ScrollArea className="h-full">
+        <div className="flex flex-col gap-1.5 pb-4 pr-3">
+          {[...veiculos]
           .sort((a, b) => (a.linha || "").localeCompare(b.linha || ""))
           .map((v) => {
             const id = v.id || v.veiculo || ""
@@ -89,7 +97,8 @@ export function VehicleList({
               </button>
             )
           })}
-      </div>
-    </ScrollArea>
+        </div>
+      </ScrollArea>
+    </div>
   )
 }

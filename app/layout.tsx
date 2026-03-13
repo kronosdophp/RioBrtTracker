@@ -1,9 +1,17 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+})
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+})
 
 export const metadata: Metadata = {
   title: 'BRT Rio Monitor - Rastreamento em Tempo Real',
@@ -29,8 +37,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className="font-sans antialiased overflow-hidden">
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased overflow-hidden`}>
         {children}
+        <Toaster />
       </body>
     </html>
   )
