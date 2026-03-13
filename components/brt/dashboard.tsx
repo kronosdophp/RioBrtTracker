@@ -3,9 +3,18 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useVeiculos } from "@/hooks/use-veiculos"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { calcularStats } from "@/lib/types"
 import { Sidebar } from "./sidebar"
-import { Loader2, Navigation } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetClose } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { Loader2, Navigation, Menu, Bus, X } from "lucide-react"
+import { ConnectionStatus } from "./connection-status"
+import { NearbyPanel } from "./nearby-panel"
+import { LineFilter } from "./line-filter"
+import { VehicleList } from "./vehicle-list"
+import { StatsPanel } from "./stats-panel"
+import { Separator } from "@/components/ui/separator"
 
 const BRTMap = dynamic(
   () => import("./brt-map").then((mod) => ({ default: mod.BRTMap })),
@@ -25,11 +34,15 @@ const BRTMap = dynamic(
 )
 
 export function Dashboard() {
+  const isMobile = useIsMobile()
   const { veiculos, error, isLoading, isValidating, refresh } =
     useVeiculos(20000)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedLinha, setSelectedLinha] = useState("all")
   const [collapsed, setCollapsed] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [hydrationComplete, setHydrationComplete] = useState(false)
   const [userLocation, setUserLocation] = useState<{
     lat: number
     lng: number
@@ -37,6 +50,20 @@ export function Dashboard() {
   const [isLocating, setIsLocating] = useState(false)
   const lastUpdateRef = useRef<Date | null>(null)
   const watchIdRef = useRef<number | null>(null)
+
+  // Ensure hydration consistency and prevent menu auto-open
+  useEffect(() => {
+    setMounted(true)
+    // Small delay to ensure everything is hydrated
+    setTimeout(() => setHydrationComplete(true), 0)
+  }, [])
+
+  // Force sheet closed on mount and when mobile detection changes
+  useEffect(() => {
+    if (!isMobile) {
+      setIsSheetOpen(false)
+    }
+  }, [isMobile])
 
   useEffect(() => {
     if (veiculos.length > 0) {
@@ -57,11 +84,13 @@ export function Dashboard() {
 
   const handleSelectVeiculo = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id))
+    setIsSheetOpen(false) // Fechar menu no mobile
   }, [])
 
   const handleLinhaChange = useCallback((linha: string) => {
     setSelectedLinha(linha)
     setSelectedId(null)
+    setIsSheetOpen(false) // Fechar menu no mobile
   }, [])
 
   const handleRequestLocation = useCallback(() => {
@@ -142,12 +171,136 @@ export function Dashboard() {
           userLocation={userLocation}
         />
 
-        {/* Floating geolocation button on map */}
-        {!userLocation && (
+        {/* Mobile Menu + Location Controls */}
+        {hydrationComplete && mounted && isMobile ? (
+          <div key={`mobile-menu-${hydrationComplete}`} className="absolute right-4 top-4 z-[9000] flex flex-col gap-2">
+            {/* Menu Button */}
+            <Sheet open={hydrationComplete ? isSheetOpen : false} onOpenChange={setIsSheetOpen} key={`sheet-${hydrationComplete}`}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-lg border border-border bg-card shadow-lg"
+                  aria-label="Abrir menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80 flex flex-col p-0">
+                <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
+                <SheetDescription className="sr-only">Menu para filtrar linhas, veículos e visualizar informações</SheetDescription>
+                {/* Menu Content */}
+                <div className="flex flex-1 flex-col overflow-hidden">
+                  {/* Header with Close Button */}
+                  <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15">
+                        <Bus className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h1 className="text-sm font-bold text-foreground">
+                          BRT Rio Monitor
+                        </h1>
+                        <p className="text-[11px] text-muted-foreground">
+                          Rastreamento em tempo real
+                        </p>
+                      </div>
+                    </div>
+                    <SheetClose asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        aria-label="Fechar menu"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </SheetClose>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+                    <ConnectionStatus
+                      isConnected={!error && veiculos.length > 0}
+                      isValidating={isValidating}
+                      lastUpdate={lastUpdateRef.current}
+                      onRefresh={refresh}
+                    />
+
+                    <StatsPanel stats={stats} isLoading={isLoading} />
+
+                    <NearbyPanel
+                      veiculos={veiculos}
+                      userLocation={userLocation}
+                      isLocating={isLocating}
+                      onRequestLocation={handleRequestLocation}
+                      onSelectVeiculo={handleSelectVeiculo}
+                    />
+
+                    <Separator className="bg-border" />
+
+                    <LineFilter
+                      linhas={stats.linhas}
+                      selectedLinha={selectedLinha}
+                      onLinhaChange={handleLinhaChange}
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Veiculos ({filteredVeiculos.length})
+                      </span>
+                    </div>
+
+                    <VehicleList
+                      veiculos={filteredVeiculos}
+                      selectedId={selectedId}
+                      onSelect={handleSelectVeiculo}
+                      isLoading={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-border px-4 py-2">
+                  <p className="text-center text-[10px] text-muted-foreground">
+                    Dados: KronosSystem
+                  </p>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Location Button */}
+            {!userLocation && (
+              <button
+                onClick={handleRequestLocation}
+                disabled={isLocating}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card shadow-lg transition-all hover:bg-secondary disabled:opacity-50"
+                title="Mostrar minha localizacao"
+                aria-label="Ativar geolocalizacao"
+              >
+                <Navigation className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
+
+            {userLocation && (
+              <button
+                onClick={handleRequestLocation}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10 shadow-lg transition-all hover:bg-blue-500/20"
+                title="Localizacao ativa - clique para atualizar"
+                aria-label="Atualizar geolocalizacao"
+              >
+                <Navigation className="h-5 w-5 text-blue-400" />
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {/* Desktop Location Button (when not mobile) */}
+        {mounted && !isMobile && hydrationComplete && !userLocation && (
           <button
             onClick={handleRequestLocation}
             disabled={isLocating}
-            className="absolute right-4 top-4 z-[1000] flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card shadow-lg transition-all hover:bg-secondary disabled:opacity-50"
+            className="absolute right-4 top-4 z-[9000] flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card shadow-lg transition-all hover:bg-secondary disabled:opacity-50"
             title="Mostrar minha localizacao"
             aria-label="Ativar geolocalizacao"
           >
@@ -155,11 +308,11 @@ export function Dashboard() {
           </button>
         )}
 
-        {/* User location active indicator on map */}
-        {userLocation && (
+        {/* Desktop User location active indicator on map */}
+        {mounted && !isMobile && hydrationComplete && userLocation && (
           <button
             onClick={handleRequestLocation}
-            className="absolute right-4 top-4 z-[1000] flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10 shadow-lg transition-all hover:bg-blue-500/20"
+            className="absolute right-4 top-4 z-[9000] flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10 shadow-lg transition-all hover:bg-blue-500/20"
             title="Localizacao ativa - clique para atualizar"
             aria-label="Atualizar geolocalizacao"
           >

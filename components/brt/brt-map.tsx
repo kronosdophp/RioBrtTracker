@@ -1,15 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef, useCallback, useState } from "react"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import type { Veiculo } from "@/lib/types"
 import { estimarChegada, formatDistancia } from "@/lib/geo-utils"
+import { getCorredorFromTrajeto } from "@/lib/brt-stations"
 import {
-  getCorredorFromTrajeto,
-  getEstacaoMaisProxima,
-  corredores,
-} from "@/lib/brt-stations"
+  type StationFeature,
+  type NearbyStation,
+  findNearestStation,
+  getStatusText,
+  getStatusColor,
+} from "@/lib/station-utils"
 
 interface BRTMapProps {
   veiculos: Veiculo[]
@@ -18,22 +21,90 @@ interface BRTMapProps {
   userLocation: { lat: number; lng: number } | null
 }
 
-function createBusIcon(isMoving: boolean, isSelected: boolean) {
+// Cores para cada corredor BRT
+const corredorCores: Record<string, string> = {
+  "Transcarioca": "#3b82f6",
+  "Transolímpica": "#10b981", 
+  "Transoeste": "#f59e0b",
+  "Lote Zero": "#8b5cf6",
+  "Transbrasil": "#ef4444",
+}
+
+// Tipo para GeoJSON de rotas
+interface BRTRouteFeature {
+  type: "Feature"
+  properties: {
+    nome: string
+    km: number
+    ano: string
+  }
+  geometry: {
+    type: "MultiLineString"
+    coordinates: number[][][]
+  }
+}
+
+// Tipo para GeoJSON de estações
+interface BRTStationFeature {
+  type: "Feature"
+  properties: {
+    Nome: string
+    Flg_TransCarioca: number
+    Flg_TransBrasil: number
+    Flg_TransOeste: number
+    Flg_TransOlimpica: number
+    Integra_Trem: number
+    Integra_Metro: number
+    Integra_Aeroporto: number
+  }
+  geometry: {
+    type: "Point"
+    coordinates: [number, number]
+  }
+}
+
+function createBusIcon(isMoving: boolean, isSelected: boolean, isAtStation?: boolean) {
   const size = isSelected ? 40 : 32
   const bgColor = isSelected 
     ? "#8b5cf6" 
-    : isMoving 
-      ? "#10b981" 
-      : "#f59e0b"
+    : isAtStation 
+      ? "#3b82f6" // Azul quando na estação
+      : isMoving 
+        ? "#10b981" 
+        : "#f59e0b"
   
   const pulseClass = isMoving && !isSelected ? "bus-pulse" : ""
   const ring = isSelected 
     ? `box-shadow: 0 0 0 4px rgba(139,92,246,0.4), 0 4px 12px rgba(0,0,0,0.5);` 
-    : `box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 2px rgba(255,255,255,0.5);`
+    : isAtStation
+      ? `box-shadow: 0 0 0 4px rgba(59,130,246,0.4), 0 4px 12px rgba(0,0,0,0.4);`
+      : `box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 2px rgba(255,255,255,0.5);`
+  
+  // Indicador de estação (pequeno ponto)
+  const stationIndicator = isAtStation && !isSelected ? `
+    <div style="
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #10b981;
+      border: 2px solid white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    ">
+      <svg width="6" height="6" viewBox="0 0 24 24" fill="white">
+        <circle cx="12" cy="12" r="8"/>
+      </svg>
+    </div>
+  ` : ""
 
   return L.divIcon({
     className: "bus-marker-icon",
     html: `<div class="${pulseClass}" style="
+      position: relative;
       width: ${size}px;
       height: ${size}px;
       border-radius: 50%;
@@ -53,6 +124,7 @@ function createBusIcon(isMoving: boolean, isSelected: boolean) {
         <circle cx="8" cy="19" r="2" fill="white"/>
         <circle cx="16" cy="19" r="2" fill="white"/>
       </svg>
+      ${stationIndicator}
     </div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -77,7 +149,8 @@ function createUserIcon() {
 
 function createPopupContent(
   v: Veiculo,
-  userLoc: { lat: number; lng: number } | null
+  userLoc: { lat: number; lng: number } | null,
+  nearbyStation: NearbyStation | null
 ) {
   const vel = Number(v.velocidade) || 0
   const isMoving = vel > 0
@@ -102,17 +175,63 @@ function createPopupContent(
     `
   }
 
+  // Seção de estação próxima usando dados reais do GeoJSON
   let stationHtml = ""
-  const corredorKey = getCorredorFromTrajeto(v.trajeto) // Se o veículo tiver um trajeto reconhecido, ele deve mostrar a estação mais próxima, mas no momento essa funçao eu tirei, pois vou precisar pegar as rotas precisas de todas estaçoes, e creio que vai levar um tempo pra eu fazer isso:/ mas breve eu irei atualizar isso, pois acho que vai ser uma informaçao bem interessante de se ter no popup, principalmente pra quem nao conhece muito bem o sistema BRT do Rio e quer entender melhor onde o veiculo esta. Mas por enquanto, vou deixar essa funçao comentada, e quando eu tiver as rotas de todas estaçoes atualizadas, eu descomento ela e mostro a estaçao mais proxima de cada veiculo no popup.
-  if (corredorKey && corredores[corredorKey] && !isNaN(busLat) && !isNaN(busLng)) {
-    const { estacao, distKm } = getEstacaoMaisProxima(busLat, busLng, corredores[corredorKey])
+  if (nearbyStation) {
+    const stationStatusColor = getStatusColor(nearbyStation.status)
+    const stationStatusText = getStatusText(nearbyStation.status)
+    const isAtStation = nearbyStation.status === "na_estacao"
+    
     stationHtml = `
-      <div style="margin-top: 8px; padding: 10px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.6); border-radius: 10px; display: flex; align-items: center; gap: 10px;">
-        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${corredores[corredorKey].cor}; box-shadow: 0 0 0 2px rgba(255,255,255,0.5);"></div>
-        <div>
-          <div style="font-size: 10px; color: #6b7280; font-weight: 600;">PRÓXIMA ESTAÇÃO</div>
-          <div style="font-size: 14px; color: #1f2937; font-weight: 700;">${estacao.nome}</div>
-          <div style="font-size: 11px; color: #6b7280;">${formatDistancia(distKm)} • ${corredores[corredorKey].nome}</div>
+      <div style="margin-top: 8px; padding: 10px; background: ${isAtStation ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05))' : 'rgba(255,255,255,0.8)'}; backdrop-filter: blur(8px); border: 1px solid ${isAtStation ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.6)'}; border-radius: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <div style="
+            width: 32px; 
+            height: 32px; 
+            border-radius: 8px; 
+            background: ${nearbyStation.corCorredor}; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            flex-shrink: 0;
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>
+            </svg>
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+              <span style="
+                font-size: 9px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                background: ${stationStatusColor}20;
+                color: ${stationStatusColor};
+                padding: 2px 6px;
+                border-radius: 4px;
+              ">${stationStatusText}</span>
+            </div>
+            <div style="font-size: 14px; color: #1f2937; font-weight: 700; line-height: 1.2;">${nearbyStation.nome}</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+              ${formatDistancia(nearbyStation.distanciaKm)} • ${nearbyStation.corredor}
+            </div>
+            ${nearbyStation.integracoes.length > 0 ? `
+              <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
+                ${nearbyStation.integracoes.map(i => `
+                  <span style="
+                    font-size: 9px;
+                    background: #f1f5f9;
+                    color: #475569;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-weight: 500;
+                  ">${i}</span>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>
         </div>
       </div>
     `
@@ -180,6 +299,11 @@ export function BRTMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const onSelectRef = useRef(onSelectVeiculo)
   const userLocRef = useRef(userLocation)
+  const routesLayerRef = useRef<L.LayerGroup | null>(null)
+  const stationsLayerRef = useRef<L.LayerGroup | null>(null)
+  const stationsDataRef = useRef<StationFeature[]>([])
+  const [showRoutes, setShowRoutes] = useState(true)
+  const [showStations, setShowStations] = useState(true)
 
   useEffect(() => {
     onSelectRef.current = onSelectVeiculo
@@ -189,6 +313,134 @@ export function BRTMap({
     userLocRef.current = userLocation
   }, [userLocation])
 
+  // Carrega e renderiza as rotas e estações do GeoJSON
+  const loadGeoJSONData = useCallback(async () => {
+    try {
+      // Carrega rotas
+      const routesRes = await fetch("/data/brt_routes.geojson")
+      const routesData = await routesRes.json()
+      
+      // Verifica se o mapa ainda existe após o fetch
+      const map = mapRef.current
+      if (!map) return
+      
+      const routesLayer = L.layerGroup()
+      
+      routesData.features.forEach((feature: BRTRouteFeature) => {
+        const cor = corredorCores[feature.properties.nome] || "#6b7280"
+        
+        // MultiLineString pode ter múltiplos segmentos
+        feature.geometry.coordinates.forEach((lineCoords) => {
+          const latLngs = lineCoords.map((coord) => [coord[1], coord[0]] as [number, number])
+          
+          L.polyline(latLngs, {
+            color: cor,
+            weight: 5,
+            opacity: 0.8,
+            lineCap: "round",
+            lineJoin: "round",
+          })
+            .bindPopup(`
+              <div style="font-family: 'Geist', system-ui, sans-serif; padding: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background: ${cor};"></div>
+                  <strong style="font-size: 14px; color: #0f172a;">${feature.properties.nome}</strong>
+                </div>
+                <div style="font-size: 12px; color: #64748b;">
+                  ${feature.properties.km.toFixed(1)} km - Inaugurado em ${feature.properties.ano}
+                </div>
+              </div>
+            `)
+            .addTo(routesLayer)
+        })
+      })
+      
+      // Verifica novamente antes de adicionar ao mapa
+      if (!mapRef.current) return
+      
+      routesLayer.addTo(mapRef.current)
+      routesLayerRef.current = routesLayer
+
+      // Carrega estações
+      const stationsRes = await fetch("/data/brt_stations.geojson")
+      const stationsData = await stationsRes.json()
+      
+      // Verifica se o mapa ainda existe
+      if (!mapRef.current) return
+      
+      const stationsLayer = L.layerGroup()
+      
+      stationsData.features.forEach((feature: BRTStationFeature) => {
+        const [lng, lat] = feature.geometry.coordinates
+        const props = feature.properties
+        
+        // Determina a cor baseado no corredor principal
+        let cor = "#6b7280"
+        if (props.Flg_TransCarioca) cor = corredorCores["Transcarioca"]
+        else if (props.Flg_TransBrasil) cor = corredorCores["Transbrasil"]
+        else if (props.Flg_TransOeste) cor = corredorCores["Transoeste"]
+        else if (props.Flg_TransOlimpica) cor = corredorCores["Transolímpica"]
+        
+        // Ícones de integração
+        const integracoes: string[] = []
+        if (props.Integra_Trem) integracoes.push("Trem")
+        if (props.Integra_Metro) integracoes.push("Metrô")
+        if (props.Integra_Aeroporto) integracoes.push("Aeroporto")
+        
+        const stationIcon = L.divIcon({
+          className: "station-marker",
+          html: `<div style="
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: ${cor};
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          "></div>`,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6],
+        })
+        
+        L.marker([lat, lng], { icon: stationIcon })
+          .bindPopup(`
+            <div style="font-family: 'Geist', system-ui, sans-serif; padding: 8px; min-width: 180px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: ${cor};"></div>
+                <strong style="font-size: 14px; color: #0f172a;">${props.Nome}</strong>
+              </div>
+              ${integracoes.length > 0 ? `
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                  ${integracoes.map(i => `
+                    <span style="
+                      font-size: 10px;
+                      background: #f1f5f9;
+                      color: #475569;
+                      padding: 2px 6px;
+                      border-radius: 4px;
+                      font-weight: 500;
+                    ">${i}</span>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+          `)
+          .addTo(stationsLayer)
+      })
+      
+      // Verifica novamente antes de adicionar ao mapa
+      if (!mapRef.current) return
+      
+      stationsLayer.addTo(mapRef.current)
+      stationsLayerRef.current = stationsLayer
+      
+      // Salva os dados das estações para uso na detecção de proximidade
+      stationsDataRef.current = stationsData.features as StationFeature[]
+      
+    } catch (error) {
+      console.error("[v0] Erro ao carregar dados GeoJSON:", error)
+    }
+  }, [])
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -196,10 +448,10 @@ export function BRTMap({
       center: [-22.9064, -43.1761],
       zoom: 12,
       zoomControl: true,
-      attributionControl: true,
+      attributionControl: false,
     })
 
-    ///atualizei essa imagem do satelite para uma mais clara, pois a anterior estava muito escura e dificultava a visualização dos veículos
+    // Imagem de satélite
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       {
@@ -223,13 +475,38 @@ export function BRTMap({
     L.control.scale({ imperial: false, metric: true }).addTo(map)
 
     mapRef.current = map
+    
+    // Carrega os dados GeoJSON
+    loadGeoJSONData()
 
     return () => {
       map.remove()
       mapRef.current = null
       markersRef.current = {}
+      routesLayerRef.current = null
+      stationsLayerRef.current = null
     }
-  }, [])
+  }, [loadGeoJSONData])
+  
+  // Controla visibilidade das rotas
+  useEffect(() => {
+    if (!mapRef.current || !routesLayerRef.current) return
+    if (showRoutes) {
+      routesLayerRef.current.addTo(mapRef.current)
+    } else {
+      mapRef.current.removeLayer(routesLayerRef.current)
+    }
+  }, [showRoutes])
+  
+  // Controla visibilidade das estações
+  useEffect(() => {
+    if (!mapRef.current || !stationsLayerRef.current) return
+    if (showStations) {
+      stationsLayerRef.current.addTo(mapRef.current)
+    } else {
+      mapRef.current.removeLayer(stationsLayerRef.current)
+    }
+  }, [showStations])
 
   // User location marker
   useEffect(() => {
@@ -265,6 +542,7 @@ export function BRTMap({
       if (!map) return
 
       const currentIds = new Set<string>()
+      const stations = stationsDataRef.current
 
       veiculos.forEach((v) => {
         const id = v.id || v.veiculo || ""
@@ -278,19 +556,24 @@ export function BRTMap({
 
         const isMoving = (Number(v.velocidade) || 0) > 0
         const isSelected = selectedId === id
+        
+        // Encontra a estação mais próxima usando dados reais do GeoJSON
+        const corredorTrajeto = getCorredorFromTrajeto(v.trajeto)
+        const nearbyStation = findNearestStation(lat, lng, stations, corredorTrajeto)
+        const isAtStation = nearbyStation?.status === "na_estacao"
 
         if (markersRef.current[id]) {
           markersRef.current[id].setLatLng([lat, lng])
-          markersRef.current[id].setIcon(createBusIcon(isMoving, isSelected))
+          markersRef.current[id].setIcon(createBusIcon(isMoving, isSelected, isAtStation))
           const popup = markersRef.current[id].getPopup()
           if (popup) {
-            popup.setContent(createPopupContent(v, userLocRef.current))
+            popup.setContent(createPopupContent(v, userLocRef.current, nearbyStation))
           }
         } else {
           const marker = L.marker([lat, lng], {
-            icon: createBusIcon(isMoving, isSelected),
+            icon: createBusIcon(isMoving, isSelected, isAtStation),
           })
-            .bindPopup(createPopupContent(v, userLocRef.current), {
+            .bindPopup(createPopupContent(v, userLocRef.current, nearbyStation), {
               maxWidth: 320,
               className: "brt-popup",
             })
@@ -331,11 +614,76 @@ export function BRTMap({
   }, [selectedId])
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full"
-      role="application"
-      aria-label="Mapa de veículos BRT do Rio de Janeiro"
-    />
+    <div className="relative h-full w-full">
+      <div
+        ref={containerRef}
+        className="h-full w-full"
+        role="application"
+        aria-label="Mapa de veículos BRT do Rio de Janeiro"
+      />
+      
+      {/* Controles de camadas */}
+      <div className="absolute bottom-4 left-4 z-[1000] flex flex-col gap-2 rounded-lg bg-background/95 p-3 shadow-lg backdrop-blur-sm border border-border">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Camadas</span>
+        <label className="flex items-center gap-2 cursor-pointer text-sm">
+          <input
+            type="checkbox"
+            checked={showRoutes}
+            onChange={(e) => setShowRoutes(e.target.checked)}
+            className="rounded border-border"
+          />
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 bg-primary rounded"></span>
+            Rotas
+          </span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer text-sm">
+          <input
+            type="checkbox"
+            checked={showStations}
+            onChange={(e) => setShowStations(e.target.checked)}
+            className="rounded border-border"
+          />
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-primary"></span>
+            Estações
+          </span>
+        </label>
+        
+        {/* Legenda de status dos veículos */}
+        <div className="mt-2 pt-2 border-t border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Veículos</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-3 h-3 rounded-full" style={{ background: "#10b981" }}></span>
+              <span className="text-foreground">Em movimento</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-3 h-3 rounded-full" style={{ background: "#f59e0b" }}></span>
+              <span className="text-foreground">Parado</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-3 h-3 rounded-full relative" style={{ background: "#3b82f6" }}>
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 border border-white"></span>
+              </span>
+              <span className="text-foreground">Na estação</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Legenda de cores dos corredores */}
+        <div className="mt-2 pt-2 border-t border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Corredores</span>
+          <div className="flex flex-col gap-1">
+            {Object.entries(corredorCores).map(([nome, cor]) => (
+              <div key={nome} className="flex items-center gap-2 text-xs">
+                <span className="w-3 h-3 rounded-full" style={{ background: cor }}></span>
+                <span className="text-foreground">{nome}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
